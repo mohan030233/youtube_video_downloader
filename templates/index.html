@@ -1,0 +1,64 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Youtube video downloader</title>
+    <link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+
+<div class="container">
+
+    <!-- LEFT PANEL -->
+    <div class="left-panel">
+
+        <h1>Youtube video downloader</h1>
+
+        <!-- URL Input -->
+        <input id="url"
+               placeholder="Paste YouTube URL"
+               oninput="autoLoad()">
+
+        <!-- Video / Audio Selection -->
+        <div class="options">
+            <label>
+                <input type="radio" name="mode" value="video" checked>
+                <span>🎬 Video</span>
+            </label>
+
+            <label>
+                <input type="radio" name="mode" value="audio">
+                <span>🎵 Audio</span>
+            </label>
+        </div>
+
+        <!-- Quality Dropdown -->
+        <select id="quality">
+            <option>Best</option>
+        </select>
+
+        <!-- Download Button -->
+        <button onclick="download()">
+            Download
+        </button>
+
+        <!-- Loading Circle -->
+        <div class="loader-container" id="loaderContainer">
+            <div class="loader"></div>
+        </div>
+
+        <!-- Status -->
+        <p id="status"></p>
+
+    </div>
+
+
+    <!-- RIGHT PANEL -->
+    <div class="right-panel">
+        <img id="thumb">
+    </div>
+
+</div>
+
+<script src="/static/script.js"></script>
+</body>
+</html>
