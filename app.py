@@ -1,21 +1,18 @@
-from flask import Flask, render_template, request, jsonify
+from flask import Flask, render_template, request, jsonify, send_file
 import yt_dlp
 import os
-import requests
-import time
-from flask import send_file
-
 
 app = Flask(__name__)
 
-DOWNLOADS_DIR = os.path.join(os.path.expanduser("~"), "Downloads")
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
-THUMB_DIR = os.path.join(BASE_DIR, "static", "thumbnails")
-os.makedirs(THUMB_DIR, exist_ok=True)
+DOWNLOADS_DIR = os.path.join(BASE_DIR, "temp")
+os.makedirs(DOWNLOADS_DIR, exist_ok=True)
+
 
 @app.route("/")
 def index():
     return render_template("index.html")
+
 
 @app.route("/info", methods=["POST"])
 def info():
@@ -34,7 +31,6 @@ def info():
         with yt_dlp.YoutubeDL(ydl_opts) as ydl:
             info = ydl.extract_info(url, download=False)
 
-        # Get only real video resolutions (ignore trash formats)
         resolutions = sorted(
             list({
                 f.get("height")
@@ -53,55 +49,57 @@ def info():
         })
 
     except Exception as e:
-        print("🔥 INFO ERROR:", e)
+        print("INFO ERROR:", e)
         return jsonify({"error": "Video not available"}), 500
-
-
-
-
 
 
 @app.route("/download", methods=["POST"])
 def download():
-    url = request.json["url"]
-    mode = request.json["mode"]
-    quality = request.json["quality"]
+    try:
+        data = request.get_json()
+        url = data["url"]
+        mode = data["mode"]
+        quality = data["quality"]
 
-    temp_dir = os.path.join(BASE_DIR, "temp")
-    os.makedirs(temp_dir, exist_ok=True)
+        output_template = os.path.join(DOWNLOADS_DIR, "%(title)s.%(ext)s")
 
-    output_template = os.path.join(temp_dir, "%(title)s.%(ext)s")
+        if mode == "video":
+            if quality == "Best":
+                fmt = "bv*[ext=mp4]+ba[ext=m4a]/b[ext=mp4]"
+            else:
+                fmt = f"bv*[ext=mp4][height<={quality}]+ba[ext=m4a]/b[ext=mp4]"
 
-    if mode == "video":
-        if quality == "Best":
-            fmt = "bv*[ext=mp4]+ba[ext=m4a]/b[ext=mp4]"
+            ydl_opts = {
+                "format": fmt,
+                "merge_output_format": "mp4",
+                "outtmpl": output_template
+            }
+
         else:
-            fmt = f"bv*[ext=mp4][height<={quality}]+ba[ext=m4a]/b[ext=mp4]"
+            ydl_opts = {
+                "format": "bestaudio[ext=m4a]/bestaudio",
+                "outtmpl": output_template
+            }
 
-        opts = {
-            "format": fmt,
-            "merge_output_format": "mp4",
-            "outtmpl": output_template
-        }
+        with yt_dlp.YoutubeDL(ydl_opts) as ydl:
+            info = ydl.extract_info(url, download=True)
+            filename = ydl.prepare_filename(info)
 
-    else:
-        opts = {
-            "format": "bestaudio[ext=m4a]/bestaudio",
-            "outtmpl": output_template,
-            "postprocessors": [{
-                "key": "FFmpegExtractAudio",
-                "preferredcodec": "mp3",
-                "preferredquality": "192"
-            }]
-        }
+        if not os.path.exists(filename):
+            possible_extensions = [".m4a", ".webm", ".mp4"]
+            for ext in possible_extensions:
+                test_file = os.path.splitext(filename)[0] + ext
+                if os.path.exists(test_file):
+                    filename = test_file
+                    break
 
-    with yt_dlp.YoutubeDL(opts) as ydl:
-        info = ydl.extract_info(url, download=True)
-        filename = ydl.prepare_filename(info)
+        return send_file(filename, as_attachment=True)
 
-    return send_file(filename, as_attachment=True)
-
+    except Exception as e:
+        print("DOWNLOAD ERROR:", e)
+        return jsonify({"error": "Download failed"}), 500
 
 
 if __name__ == "__main__":
-    app.run(debug=True)
+    port = int(os.environ.get("PORT", 5000))
+    app.run(host="0.0.0.0", port=port)
